@@ -1,0 +1,186 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer lead record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "message": { "type": "string" },
+        "leadScore": { "type": "number" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["customerName", "userId"]
+    },
+    "FollowUp": {
+      "title": "FollowUp",
+      "description": "Customer follow-up outreach task and AI generated copy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "message": { "type": "string" },
+        "generatedSubject": { "type": "string" },
+        "generatedMessage": { "type": "string" },
+        "callToAction": { "type": "string" },
+        "status": { "type": "string" },
+        "followUpDate": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["customerName", "userId", "status"]
+    },
+    "BusinessProfile": {
+      "title": "BusinessProfile",
+      "description": "Company profile details and contact information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "businessName": { "type": "string" },
+        "category": { "type": "string" },
+        "products": { "type": "string" },
+        "services": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "contactInformation": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "businessName"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Log of recent user actions and system events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "title"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Persistent customer database record with full purchase & followup history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "email": { "type": "string" },
+        "purchaseHistory": { "type": "array" },
+        "followupHistory": { "type": "array" },
+        "lastContactDate": { "type": "string" },
+        "totalPurchases": { "type": "number" },
+        "totalSpend": { "type": "number" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "sourceLeadId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "name"]
+    },
+    "KnowledgeBaseDocument": {
+      "title": "KnowledgeBaseDocument",
+      "type": "object",
+      "properties": {
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploadedAt": { "type": "string" },
+        "fileSize": { "type": "number" },
+        "status": { "type": "string" },
+        "extractedText": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "chunkCount": { "type": "number" }
+      },
+      "required": ["fileName", "fileType", "fileUrl", "uploadedBy", "uploadedAt", "fileSize", "status"]
+    },
+    "GmailConnection": {
+      "title": "GmailConnection",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "emailAddress": { "type": "string" },
+        "connectedAt": { "type": "string" },
+        "lastUsedAt": { "type": "string" },
+        "status": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoUrl": { "type": "string" }
+      },
+      "required": ["userId", "emailAddress", "status"]
+    },
+    "EmailOutreachLog": {
+      "title": "EmailOutreachLog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "sentAt": { "type": "string" },
+        "errorMessage": { "type": "string" },
+        "gmailMessageId": { "type": "string" }
+      },
+      "required": ["userId", "recipientEmail", "subject", "message", "status", "sentAt"]
+    }
+  },
+  "firestore": {
+    "/gmailConnections/{userId}": {
+      "schema": "GmailConnection",
+      "description": "User connected Gmail account credentials metadata"
+    },
+    "/emailOutreachLogs/{logId}": {
+      "schema": "EmailOutreachLog",
+      "description": "Historical audit logs of Gmail outreach emails sent to leads and customers"
+    },
+    "/knowledge_base/{docId}": {
+      "schema": "KnowledgeBaseDocument",
+      "description": "RAG Knowledge Base uploaded documents and metadata"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Collection of user leads"
+    },
+    "/followups/{followupId}": {
+      "schema": "FollowUp",
+      "description": "Collection of user follow-ups"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Long-term customer database records"
+    },
+    "/business_profile/{userId}": {
+      "schema": "BusinessProfile",
+      "description": "User business profile settings"
+    },
+    "/businessProfiles/{userId}": {
+      "schema": "BusinessProfile",
+      "description": "User business profile settings"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "User activity log stream"
+    }
+  }
+}

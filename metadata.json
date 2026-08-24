@@ -1,0 +1,6 @@
+{
+  "name": "LeadPilot AI Landing Page",
+  "description": "Business-friendly AI sales CRM with automated lead scoring, business status classification, duplicate detection, full communication timeline history, direct Gmail API outreach with Google OAuth and emailOutreachLogs audit trail, AI email generator, Customer Database retention, and Central Knowledge Base RAG document retrieval system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

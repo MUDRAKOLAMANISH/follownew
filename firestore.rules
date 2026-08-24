@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    function isNewDocOwner() {
+      return isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // User profile document and all subcollections (e.g. /users/{uid}/followups/{id})
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Business Profile document (keyed by userId)
+    match /business_profile/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /businessProfiles/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /businessProfiles/{profileId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+
+    // Leads collection
+    match /leads/{leadId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+    // Subcollection path backward compatibility
+    match /leads/{userId}/items/{document} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Follow-ups collection
+    match /followups/{followupId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+    // Subcollection path backward compatibility
+    match /followups/{userId}/items/{document} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Customers collection
+    match /customers/{customerId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+    // Subcollection path backward compatibility
+    match /customers/{userId}/items/{document} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Activities / Audit trail collection
+    match /activities/{activityId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+    match /activities/{userId}/items/{document} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // AI Conversations
+    match /aiConversations/{convId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+
+    // Notifications & Tasks
+    match /notifications/{notifId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+    match /tasks/{taskId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+
+    // Public contact and demo requests
+    match /contacts/{document} {
+      allow read: if false;
+      allow write: if true;
+    }
+    match /contactSubmissions/{submissionId} {
+      allow create: if true;
+      allow read: if isAuthenticated();
+    }
+    match /emailLogs/{logId} {
+      allow create: if true;
+      allow read, update, delete: if isAuthenticated();
+    }
+    match /demo_requests/{document} {
+      allow read: if false;
+      allow write: if true;
+    }
+
+    // Knowledge Base collection for RAG system
+    match /knowledge_base/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Gmail Connections collection (keyed by userId)
+    match /gmailConnections/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Email Outreach Logs collection
+    match /emailOutreachLogs/{logId} {
+      allow read, delete: if isDocOwner();
+      allow create: if isNewDocOwner();
+      allow update: if isDocOwner() && isNewDocOwner();
+    }
+  }
+}
