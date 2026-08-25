@@ -126,16 +126,17 @@ export const LOCAL_KNOWLEDGE_BASE: KnowledgeItem[] = [
 
   // 9. Pricing & Plans
   {
-    keywords: ["pricing", "cost", "how much", "plans", "subscription", "free trial"],
+    keywords: ["price", "pricing", "cost", "how much", "plans", "subscription", "free trial", "price details of followflow ai", "pricing details"],
     patterns: [
       /how\s+much\s+(does\s+it\s+cost|is\s+it)/i,
-      /pricing/i,
+      /pric(e|ing)\s*(details|plans?)?/i,
+      /cost(s)?/i,
       /plans?/i,
       /subscription/i,
       /free\s+trial/i
     ],
-    answer: "FollowFlow AI offers transparent plans starting with a free trial for small businesses and flexible tiers for growing teams. Check our Pricing page or click 'Book a Demo' to see it in action!",
-    suggestedNext: ["How do I get started?", "What is FollowFlow AI?"]
+    answer: "FollowFlow AI offers flexible pricing tiers:\n• Free Trial: 14-day full access with 100 AI lead score evaluations & 50 WhatsApp follow-ups.\n• Starter Plan ($29/month): Up to 500 active leads, AI lead scoring (0-100), WhatsApp message generation, and email outreach.\n• Growth / Pro Plan ($79/month): Unlimited leads, permanent customer database, 30/60/90-day customer re-engagement campaigns, and Gmail outreach.\n• Enterprise Plan (Custom / $199+/mo): Dedicated manager, custom AI training, and custom RBAC.\nClick 'Get Started' or 'Book a Demo' to begin!",
+    suggestedNext: ["How do I get started?", "What is FollowFlow AI?", "Can I use WhatsApp?"]
   },
 
   // 10. Getting Started / Demo / Onboarding

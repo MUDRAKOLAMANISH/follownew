@@ -37,6 +37,7 @@ import { isUserAdmin, getUserRole } from '../lib/adminAuth';
 import DocumentViewerModal from '../components/DocumentViewerModal';
 import DeleteDocumentModal from '../components/DeleteDocumentModal';
 import RAGInteractiveTester from '../components/RAGInteractiveTester';
+import RAGDebugPanel from '../components/RAGDebugPanel';
 
 export default function AdminKnowledgeBase() {
   const { user } = useAuth();
@@ -60,7 +61,7 @@ export default function AdminKnowledgeBase() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'documents' | 'upload' | 'rag_sandbox'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'upload' | 'rag_sandbox' | 'rag_debug'>('documents');
 
   // Modals
   const [selectedDocForView, setSelectedDocForView] = useState<KnowledgeBaseDocument | null>(null);
@@ -311,10 +312,17 @@ export default function AdminKnowledgeBase() {
               <span>Upload Product Document</span>
             </button>
             <button
+              onClick={() => setActiveTab('rag_debug')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors shadow-2xs"
+            >
+              <ShieldCheck className="h-4 w-4 text-amber-600" />
+              <span>RAG Debug Panel</span>
+            </button>
+            <button
               onClick={() => setActiveTab('rag_sandbox')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
             >
-              <Sparkles className="h-4 w-4 text-amber-500" />
+              <Sparkles className="h-4 w-4 text-indigo-500" />
               <span>Test Knowledge Retrieval</span>
             </button>
           </div>
@@ -472,8 +480,8 @@ export default function AdminKnowledgeBase() {
           </div>
         </div>
 
-        {/* Navigation Tabs (Documents vs RAG Sandbox) */}
-        <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+        {/* Navigation Tabs (Documents vs RAG Debug vs RAG Sandbox) */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
           <button
             onClick={() => setActiveTab('documents')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
@@ -484,6 +492,18 @@ export default function AdminKnowledgeBase() {
           >
             <FileText className="h-4 w-4" />
             <span>Document Repository ({documents.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rag_debug')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
+              activeTab === 'rag_debug'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            <ShieldCheck className="h-4 w-4 text-amber-300" />
+            <span>RAG Debug Panel (Super Admin)</span>
           </button>
 
           <button
@@ -746,7 +766,19 @@ export default function AdminKnowledgeBase() {
           </div>
         )}
 
-        {/* TAB 2: Live RAG Query Tester Sandbox */}
+        {/* TAB 2: Super Admin RAG Diagnostic & Pipeline Auditor */}
+        {activeTab === 'rag_debug' && (
+          <RAGDebugPanel
+            documents={documents}
+            initialQuery="price details of FollowFlow AI"
+            onOpenDocViewer={(doc) => {
+              setSelectedDocForView(doc);
+              setIsViewModalOpen(true);
+            }}
+          />
+        )}
+
+        {/* TAB 3: Live RAG Query Tester Sandbox */}
         {activeTab === 'rag_sandbox' && (
           <RAGInteractiveTester
             documents={documents}

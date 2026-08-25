@@ -176,6 +176,68 @@ export interface RAGSourceCitation {
   snippet: string;
   relevanceScore?: number;
   fileUrl?: string;
+  chunkIndex?: number;
+}
+
+export interface RAGChunkMatch {
+  docId: string;
+  fileName: string;
+  fileType: string;
+  fileUrl?: string;
+  chunkText: string;
+  score: number;
+  relevancePercentage: number;
+  chunkIndex?: number;
+}
+
+export interface RAGDiagnosticReport {
+  uploadStatus: {
+    collection: string;
+    totalDocuments: number;
+    readyCount: number;
+    status: 'connected' | 'empty' | 'error';
+    documents: Array<{
+      id: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+      extractedTextLength: number;
+      chunkCount: number;
+      status: string;
+    }>;
+  };
+  extractionStatus: {
+    totalExtractedChars: number;
+    documentsWithText: number;
+    documentsMissingText: number;
+    status: 'healthy' | 'warning' | 'error';
+    details: string;
+  };
+  chunkingStatus: {
+    totalChunksGenerated: number;
+    chunkSize: number;
+    overlap: number;
+    status: 'healthy' | 'empty' | 'error';
+    details: string;
+  };
+  retrievalStatus: {
+    query: string;
+    queryTerms: string[];
+    matchedChunksCount: number;
+    topScore: number;
+    thresholdUsed: number;
+    status: 'found' | 'no_matches';
+    reasonIfEmpty?: string;
+    matchedChunks: RAGChunkMatch[];
+  };
+  groundingStatus: {
+    modelUsed: string;
+    contextProvided: boolean;
+    finalPrompt: string;
+    responseLength: number;
+    status: 'grounded' | 'fallback_not_found' | 'error';
+    details: string;
+  };
 }
 
 export interface RAGQueryResponse {
@@ -184,6 +246,14 @@ export interface RAGQueryResponse {
   query: string;
   modelUsed?: string;
   contextFound: boolean;
+  debugInfo?: {
+    matchedChunks?: RAGChunkMatch[];
+    topScore?: number;
+    queryTerms?: string[];
+    finalPrompt?: string;
+    reasonIfEmpty?: string;
+    diagnosticReport?: RAGDiagnosticReport;
+  };
 }
 
 export interface EmailOutreachLog {

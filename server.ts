@@ -517,11 +517,12 @@ Only return valid JSON.`;
         reply: result.reply,
         sources: result.sources || [],
         foundInKnowledgeBase: result.foundInKnowledgeBase,
+        debugInfo: result.debugInfo,
         suggestedQuestions: [
           "What is FollowFlow AI?",
+          "What are the pricing details of FollowFlow AI?",
           "How does Follow-Up work?",
           "Can I use WhatsApp?",
-          "How do I manage customers?",
           "What businesses can use this?"
         ]
       });
@@ -533,8 +534,8 @@ Only return valid JSON.`;
         foundInKnowledgeBase: false,
         suggestedQuestions: [
           "What is FollowFlow AI?",
-          "How does Follow-Up work?",
-          "Can I use WhatsApp?"
+          "What are the pricing details of FollowFlow AI?",
+          "How does Follow-Up work?"
         ]
       });
     }

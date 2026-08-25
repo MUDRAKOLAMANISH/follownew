@@ -120,9 +120,9 @@ service cloud.firestore {
       allow write: if true;
     }
 
-    // Knowledge Base collection for RAG system
+    // Knowledge Base collection for RAG system (public product docs readable by all, writable by authenticated users)
     match /knowledge_base/{docId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated();
     }
 

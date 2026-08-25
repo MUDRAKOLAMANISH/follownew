@@ -3,40 +3,114 @@ import { motion } from 'motion/react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import FollowBuddyChat from '../components/FollowBuddyChat';
-import { Mail, MapPin, Clock, Phone, CheckCircle, MessageSquare } from 'lucide-react';
-import { submitContactForm } from '../lib/notificationService';
+import { Mail, MapPin, Clock, Phone, CheckCircle, Loader2, AlertCircle, Send } from 'lucide-react';
+
+const N8N_WEBHOOK_URL = 'https://manish0150.app.n8n.cloud/webhook/followflow-contact';
 
 export default function Contact() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    subject: '',
+    businessName: '',
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  const validateForm = (): boolean => {
+    if (!formData.name.trim()) {
+      setError('Please enter your name.');
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim() || !emailRegex.test(formData.email.trim())) {
+      setError('Please enter a valid email address.');
+      return false;
+    }
+    if (!formData.phone.trim()) {
+      setError('Please enter your phone number.');
+      return false;
+    }
+    if (!formData.message.trim()) {
+      setError('Please enter your message.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError('');
 
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const payload = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      businessName: formData.businessName.trim(),
+      message: formData.message.trim()
+    };
+
+    console.log('[Contact Form] Submitting inquiry to n8n webhook:', N8N_WEBHOOK_URL);
+    console.log('[Contact Form] Payload:', payload);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15-second network timeout
+
     try {
-      await submitContactForm({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        subject: formData.subject.trim() || 'General Inquiry',
-        message: formData.message.trim()
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-      
+
+      clearTimeout(timeoutId);
+
+      console.log('[Contact Form] Webhook HTTP response status:', response.status, response.statusText);
+
+      let responseBody: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseBody = await response.json();
+      } else {
+        responseBody = await response.text();
+      }
+
+      console.log('[Contact Form] Webhook response body:', responseBody);
+
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status} ${response.statusText}`);
+      }
+
+      // Success
       setIsSuccess(true);
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        businessName: '',
+        message: ''
+      });
     } catch (err: any) {
-      setError('An error occurred while submitting your message. Please try again.');
-      console.error("Error submitting contact form: ", err);
+      clearTimeout(timeoutId);
+      console.error('[Contact Form] Webhook submission error:', err);
+
+      if (err.name === 'AbortError') {
+        setError('Submission failed. Request timed out, please try again.');
+      } else {
+        setError('Submission failed. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -82,21 +156,18 @@ export default function Contact() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Send a Message</h2>
-                  <p className="text-sm text-gray-500 mt-1">Our automated system will send you an immediate email confirmation.</p>
+                  <p className="text-sm text-gray-500 mt-1">Our team will get back to you as soon as possible.</p>
                 </div>
               </div>
 
               {isSuccess ? (
-                <div className="bg-green-50 text-green-800 p-8 rounded-2xl text-center border border-green-100">
+                <div className="bg-green-50 text-green-800 p-8 rounded-2xl text-center border border-green-100 animate-fade-in">
                   <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-8 h-8 text-green-600" />
                   </div>
                   <h3 className="text-2xl font-bold mb-2 text-green-900">Inquiry Received!</h3>
-                  <p className="text-green-700 max-w-md mx-auto mb-4">
-                    Thank you for reaching out. We have received your inquiry and sent a confirmation to your email.
-                  </p>
-                  <p className="text-xs text-green-600 mb-6">
-                    Our team has been notified and will reply shortly.
+                  <p className="text-green-800 font-medium max-w-md mx-auto mb-6 text-sm sm:text-base leading-relaxed">
+                    Thank you for contacting FollowFlow AI. We have received your inquiry.
                   </p>
                   <button 
                     onClick={() => setIsSuccess(false)} 
@@ -107,33 +178,40 @@ export default function Contact() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && <div className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded-md border border-red-200">{error}</div>}
+                  {error && (
+                    <div className="text-red-600 text-sm bg-red-50 p-3.5 rounded-xl border border-red-200 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                      <span>{error}</span>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
-                        Full Name <span className="text-red-500">*</span>
+                        Name <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         required
+                        disabled={isSubmitting}
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all disabled:bg-gray-50"
                         placeholder="John Doe"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
-                        Email Address <span className="text-red-500">*</span>
+                        Email <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="email"
                         required
+                        disabled={isSubmitting}
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all disabled:bg-gray-50"
                         placeholder="john@example.com"
                       />
                     </div>
@@ -142,27 +220,30 @@ export default function Contact() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
-                        Phone Number
+                        Phone <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="tel"
+                        required
+                        disabled={isSubmitting}
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all disabled:bg-gray-50"
                         placeholder="+1 (555) 000-0000"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
-                        Subject
+                        Business Name
                       </label>
                       <input
                         type="text"
-                        value={formData.subject}
-                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all"
-                        placeholder="Partnership, Sales, Support..."
+                        disabled={isSubmitting}
+                        value={formData.businessName}
+                        onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all disabled:bg-gray-50"
+                        placeholder="Boutique / Store Name"
                       />
                     </div>
                   </div>
@@ -174,9 +255,10 @@ export default function Contact() {
                     <textarea
                       required
                       rows={4}
+                      disabled={isSubmitting}
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all resize-none"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 outline-none text-sm transition-all resize-none disabled:bg-gray-50"
                       placeholder="How can we help your business grow?"
                     ></textarea>
                   </div>
@@ -187,8 +269,17 @@ export default function Contact() {
                       disabled={isSubmitting}
                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all shadow-md shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      <MessageSquare className="h-4 w-4" />
-                      <span>{isSubmitting ? 'Sending inquiry...' : 'Send Message'}</span>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Submitting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          <span>Send Message</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>

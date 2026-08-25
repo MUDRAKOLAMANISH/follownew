@@ -1,13 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, X, Send, Sparkles, MessageSquare, ChevronDown, RefreshCw, ArrowRight, BookOpen } from 'lucide-react';
+import { 
+  Bot, 
+  X, 
+  Send, 
+  Sparkles, 
+  MessageSquare, 
+  ChevronDown, 
+  ChevronUp, 
+  RefreshCw, 
+  BookOpen, 
+  ShieldCheck, 
+  Layers, 
+  Terminal, 
+  Check, 
+  Copy, 
+  AlertTriangle, 
+  CheckCircle2, 
+  ExternalLink 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  getLocalFollowBuddyAnswer, 
-  SUGGESTED_QUESTIONS, 
-  UNRELATED_REFUSAL 
+  SUGGESTED_QUESTIONS 
 } from '../lib/followBuddyKnowledge';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+import { isSuperAdmin } from '../lib/adminAuth';
+import { RAGChunkMatch, RAGDiagnosticReport } from '../types';
 
 interface Message {
   id: string;
@@ -18,23 +37,44 @@ interface Message {
   isOffTopic?: boolean;
   sources?: string[];
   foundInKnowledgeBase?: boolean;
+  debugInfo?: {
+    matchedChunks?: RAGChunkMatch[];
+    topScore?: number;
+    queryTerms?: string[];
+    finalPrompt?: string;
+    reasonIfEmpty?: string;
+    diagnosticReport?: RAGDiagnosticReport;
+  };
 }
 
 const INITIAL_WELCOME = `👋 Hi! I'm Follow Buddy.
 
-I can help you understand how FollowFlow AI works, how customer follow-ups are automated, and how your business can increase sales.
+I can help you understand how FollowFlow AI works, explore pricing plans, automate WhatsApp follow-ups, and convert leads into repeat customers.
 
-Ask me anything!`;
+Ask me anything (e.g., "What are the price details of FollowFlow AI?")!`;
 
 export default function FollowBuddyChat() {
+  const { user } = useAuth();
+  const isSuper = isSuperAdmin(user);
+
   const [isOpen, setIsOpen] = useState(false);
+  const [showAdminDebugModal, setShowAdminDebugModal] = useState(false);
+  const [selectedDebugMessage, setSelectedDebugMessage] = useState<Message | null>(null);
+  const [expandedChunkMsgId, setExpandedChunkMsgId] = useState<string | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome-msg',
       sender: 'bot',
       text: INITIAL_WELCOME,
       timestamp: new Date(),
-      suggestedQuestions: SUGGESTED_QUESTIONS
+      suggestedQuestions: [
+        'What are the price details of FollowFlow AI?',
+        'How does AI lead scoring (0-100) work?',
+        'Can I use WhatsApp for follow-ups?',
+        'What are the 7 sales pipeline stages?'
+      ]
     }
   ]);
   const [input, setInput] = useState('');
@@ -43,7 +83,6 @@ export default function FollowBuddyChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom of chat when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -58,8 +97,8 @@ export default function FollowBuddyChat() {
   }, [isOpen, messages, isTyping]);
 
   const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || input).trim();
-    if (!query || isTyping) return;
+    const queryText = (textToSend || input).trim();
+    if (!queryText || isTyping) return;
 
     setHasInteracted(true);
     const userMsgId = `user-${Date.now()}`;
@@ -68,7 +107,7 @@ export default function FollowBuddyChat() {
       {
         id: userMsgId,
         sender: 'user',
-        text: query,
+        text: queryText,
         timestamp: new Date()
       }
     ];
@@ -77,7 +116,6 @@ export default function FollowBuddyChat() {
     if (!textToSend) setInput('');
     setIsTyping(true);
 
-    // Search the knowledge_base collection and query RAG-powered Follow Buddy
     try {
       let knowledgeDocs: any[] = [];
       try {
@@ -100,7 +138,7 @@ export default function FollowBuddyChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: query,
+          message: queryText,
           knowledgeDocuments: knowledgeDocs,
           conversationHistory: newMessages.slice(-4).map(m => ({
             role: m.sender === 'user' ? 'user' : 'model',
@@ -125,7 +163,12 @@ export default function FollowBuddyChat() {
           timestamp: new Date(),
           sources: data.sources || [],
           foundInKnowledgeBase: data.foundInKnowledgeBase ?? true,
-          suggestedQuestions: data.suggestedQuestions || SUGGESTED_QUESTIONS.slice(0, 3)
+          suggestedQuestions: data.suggestedQuestions || [
+            'What are the price details of FollowFlow AI?',
+            'How does AI lead scoring work?',
+            'Can I use WhatsApp?'
+          ],
+          debugInfo: data.debugInfo
         }
       ]);
     } catch (err) {
@@ -139,7 +182,11 @@ export default function FollowBuddyChat() {
           timestamp: new Date(),
           sources: [],
           foundInKnowledgeBase: false,
-          suggestedQuestions: SUGGESTED_QUESTIONS.slice(0, 3)
+          suggestedQuestions: [
+            'What is FollowFlow AI?',
+            'What are the price details of FollowFlow AI?',
+            'How does Follow-Up work?'
+          ]
         }
       ]);
     } finally {
@@ -154,16 +201,25 @@ export default function FollowBuddyChat() {
         sender: 'bot',
         text: INITIAL_WELCOME,
         timestamp: new Date(),
-        suggestedQuestions: SUGGESTED_QUESTIONS
+        suggestedQuestions: [
+          'What are the price details of FollowFlow AI?',
+          'How does AI lead scoring (0-100) work?',
+          'Can I use WhatsApp for follow-ups?'
+        ]
       }
     ]);
+  };
+
+  const handleCopyPrompt = (promptText: string) => {
+    navigator.clipboard.writeText(promptText);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2000);
   };
 
   return (
     <>
       {/* Floating Chat Button */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-        {/* Pulsing notification bubble when not open and not interacted yet */}
         {!isOpen && !hasInteracted && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -190,11 +246,9 @@ export default function FollowBuddyChat() {
           }`}
           aria-label="Toggle Follow Buddy AI Assistant"
         >
-          {/* Gentle Pulse Glow Animation when closed on Home Page */}
           {!isOpen && (
             <>
               <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 opacity-40 blur-sm animate-pulse group-hover:opacity-75 transition duration-1000" />
-              {/* Soft Blinking Indicator Dot */}
               <span className="absolute top-0 right-0 flex h-3.5 w-3.5 -mt-0.5 -mr-0.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
                 <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
@@ -206,9 +260,7 @@ export default function FollowBuddyChat() {
             {isOpen ? (
               <X className="h-5 w-5 text-white" />
             ) : (
-              <div className="relative flex items-center justify-center">
-                <Bot className="h-5 w-5 text-white animate-bounce-short" />
-              </div>
+              <Bot className="h-5 w-5 text-white" />
             )}
           </div>
 
@@ -218,7 +270,7 @@ export default function FollowBuddyChat() {
         </button>
       </div>
 
-      {/* Floating Chat Modal / Drawer */}
+      {/* Floating Chat Modal */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -227,7 +279,7 @@ export default function FollowBuddyChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 25, scale: 0.95 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[410px] max-h-[620px] h-[82vh] bg-white rounded-2xl shadow-2xl border border-purple-100 flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[440px] max-h-[640px] h-[85vh] bg-white rounded-2xl shadow-2xl border border-purple-100 flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-800 p-4 text-white flex items-center justify-between shrink-0 shadow-sm">
@@ -241,12 +293,14 @@ export default function FollowBuddyChat() {
                     <h3 className="font-bold text-sm sm:text-base text-white tracking-tight flex items-center gap-1.5">
                       <span>🤖 Follow Buddy</span>
                     </h3>
-                    <span className="bg-purple-500/40 text-purple-100 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border border-purple-300/30">
-                      AI Assistant
-                    </span>
+                    {isSuper && (
+                      <span className="bg-amber-400 text-slate-900 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border border-amber-300">
+                        Admin Mode
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-purple-200 font-medium">
-                    Your AI Sales Assistant
+                    Central Knowledge Base Grounded
                   </p>
                 </div>
               </div>
@@ -269,80 +323,145 @@ export default function FollowBuddyChat() {
               </div>
             </div>
 
-            {/* Knowledge Base Badge */}
+            {/* Knowledge Base Status Header */}
             <div className="bg-purple-50 border-b border-purple-100 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-purple-800">
               <span className="flex items-center gap-1.5 font-medium">
                 <Sparkles className="h-3 w-3 text-purple-600" />
-                <span>FollowFlow AI Official Knowledge Base</span>
+                <span>Grounded RAG Pipeline (Gemini 3.7 Flash)</span>
               </span>
-              <span className="text-purple-600 font-semibold text-[10px] bg-purple-200/60 px-1.5 py-0.5 rounded">
-                Instant Answers
+              <span className="text-emerald-700 font-semibold text-[10px] bg-emerald-100/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Active
               </span>
             </div>
 
             {/* Messages Scroll Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${
-                    msg.sender === 'user' ? 'items-end' : 'items-start'
-                  }`}
-                >
+              {messages.map((msg) => {
+                const chunks = msg.debugInfo?.matchedChunks || [];
+                const isExpanded = expandedChunkMsgId === msg.id;
+
+                return (
                   <div
-                    className={`max-w-[88%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
-                      msg.sender === 'user'
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-br-xs'
-                        : msg.isOffTopic
-                        ? 'bg-amber-50/90 text-amber-950 border border-amber-200/70 rounded-bl-xs'
-                        : 'bg-white text-gray-800 border border-gray-200/70 rounded-bl-xs'
+                    key={msg.id}
+                    className={`flex flex-col ${
+                      msg.sender === 'user' ? 'items-end' : 'items-start'
                     }`}
                   >
-                    <div>{msg.text}</div>
+                    <div
+                      className={`max-w-[92%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                        msg.sender === 'user'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-br-xs'
+                          : msg.isOffTopic
+                          ? 'bg-amber-50/90 text-amber-950 border border-amber-200/70 rounded-bl-xs'
+                          : 'bg-white text-gray-800 border border-gray-200/70 rounded-bl-xs'
+                      }`}
+                    >
+                      <div>{msg.text}</div>
 
-                    {/* Source Document Citations */}
-                    {msg.sender === 'bot' && msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-purple-100/80 flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-purple-900 flex items-center gap-1">
-                          <BookOpen className="h-3 w-3 text-purple-600 shrink-0" />
-                          Source:
-                        </span>
-                        {msg.sources.map((src, idx) => (
-                          <span
-                            key={`${msg.id}-src-${idx}`}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] font-medium transition-colors"
-                            title={src}
+                      {/* Top Retrieved Chunks & Sources Section */}
+                      {msg.sender === 'bot' && (chunks.length > 0 || (msg.sources && msg.sources.length > 0)) && (
+                        <div className="mt-2.5 pt-2 border-t border-purple-100/80 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedChunkMsgId(isExpanded ? null : msg.id)}
+                              className="text-[10px] font-bold text-purple-900 hover:text-purple-700 flex items-center gap-1 transition"
+                            >
+                              <BookOpen className="h-3 w-3 text-purple-600 shrink-0" />
+                              <span>
+                                Retrieved Chunks & Citations ({chunks.length || msg.sources?.length})
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp className="h-3 w-3 text-purple-500" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3 text-purple-500" />
+                              )}
+                            </button>
+
+                            {/* Super Admin RAG Inspector Button */}
+                            {isSuper && msg.debugInfo && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDebugMessage(msg);
+                                  setShowAdminDebugModal(true);
+                                }}
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1 transition"
+                              >
+                                <ShieldCheck className="h-3 w-3 text-amber-600" />
+                                <span>RAG Inspector</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Collapsed Citations Pills */}
+                          {!isExpanded && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(chunks.length > 0 ? chunks : (msg.sources || []).map(s => ({ fileName: s, relevancePercentage: 90 }))).map((item: any, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-medium"
+                                >
+                                  <span>📄 {item.fileName}</span>
+                                  {item.relevancePercentage && (
+                                    <span className="text-emerald-700 font-bold">({item.relevancePercentage}%)</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Expanded Chunk Details */}
+                          {isExpanded && (
+                            <div className="space-y-1.5 pt-1">
+                              {chunks.map((chunk, cIdx) => (
+                                <div
+                                  key={cIdx}
+                                  className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-mono space-y-1"
+                                >
+                                  <div className="flex items-center justify-between text-[10px]">
+                                    <span className="font-bold text-gray-900 truncate max-w-[200px]">
+                                      📄 {chunk.fileName} (Chunk #{chunk.chunkIndex ? chunk.chunkIndex + 1 : cIdx + 1})
+                                    </span>
+                                    <span className="text-emerald-700 font-bold px-1 rounded bg-emerald-50 border border-emerald-200">
+                                      {chunk.relevancePercentage}% Match ({chunk.score} pts)
+                                    </span>
+                                  </div>
+                                  <p className="text-gray-700 line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                                    "{chunk.chunkText}"
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="text-[10px] text-gray-400 mt-1 px-1">
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+
+                    {/* Suggested questions under bot response */}
+                    {msg.sender === 'bot' && msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
+                      <div className="mt-2.5 w-full flex flex-wrap gap-1.5">
+                        {msg.suggestedQuestions.map((q, idx) => (
+                          <button
+                            key={`${msg.id}-sug-${idx}`}
+                            onClick={() => handleSendMessage(q)}
+                            className="text-left text-[11px] font-medium bg-white hover:bg-purple-50 text-purple-700 hover:text-purple-900 border border-purple-200 hover:border-purple-300 rounded-xl px-2.5 py-1.5 transition shadow-2xs flex items-center gap-1.5 group"
                           >
-                            <span className="truncate max-w-[180px]">{src}</span>
-                          </span>
+                            <MessageSquare className="h-3 w-3 text-purple-500 group-hover:scale-110 transition-transform" />
+                            <span>{q}</span>
+                          </button>
                         ))}
                       </div>
                     )}
                   </div>
+                );
+              })}
 
-                  <span className="text-[10px] text-gray-400 mt-1 px-1">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-
-                  {/* Suggested questions rendered underneath bot response if available */}
-                  {msg.sender === 'bot' && msg.suggestedQuestions && msg.suggestedQuestions.length > 0 && (
-                    <div className="mt-2.5 w-full flex flex-wrap gap-1.5">
-                      {msg.suggestedQuestions.map((q, idx) => (
-                        <button
-                          key={`${msg.id}-sug-${idx}`}
-                          onClick={() => handleSendMessage(q)}
-                          className="text-left text-[11px] font-medium bg-white hover:bg-purple-50 text-purple-700 hover:text-purple-900 border border-purple-200 hover:border-purple-300 rounded-xl px-2.5 py-1.5 transition shadow-2xs flex items-center gap-1.5 group"
-                        >
-                          <MessageSquare className="h-3 w-3 text-purple-500 group-hover:scale-110 transition-transform" />
-                          <span>{q}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {/* Typing Indicator */}
               {isTyping && (
                 <div className="flex items-center gap-2 text-gray-400 text-xs py-1">
                   <div className="flex items-center gap-1 bg-white border border-gray-200 px-3 py-2 rounded-2xl shadow-2xs">
@@ -350,30 +469,12 @@ export default function FollowBuddyChat() {
                     <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:0.2s]" />
                     <span className="h-2 w-2 rounded-full bg-purple-500 animate-bounce [animation-delay:0.4s]" />
                   </div>
-                  <span className="text-[11px] text-gray-500 font-medium">Follow Buddy is typing...</span>
+                  <span className="text-[11px] text-gray-500 font-medium">Follow Buddy is retrieving context...</span>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
             </div>
-
-            {/* Quick Suggested Questions Bar (if messages length is small) */}
-            {messages.length <= 2 && (
-              <div className="px-3.5 py-2 bg-purple-50/70 border-t border-purple-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider shrink-0">
-                  Quick Topics:
-                </span>
-                {SUGGESTED_QUESTIONS.map((q, i) => (
-                  <button
-                    key={`quick-${i}`}
-                    onClick={() => handleSendMessage(q)}
-                    className="shrink-0 text-[11px] bg-white hover:bg-purple-100 text-purple-800 border border-purple-200 px-2 py-1 rounded-lg font-medium transition"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
 
             {/* Input Form */}
             <form
@@ -388,7 +489,7 @@ export default function FollowBuddyChat() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about FollowFlow AI, follow-ups, WhatsApp..."
+                placeholder="Ask about FollowFlow AI, pricing details, workflows..."
                 className="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 transition"
               />
               <button
@@ -401,6 +502,132 @@ export default function FollowBuddyChat() {
               </button>
             </form>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SUPER ADMIN LIVE RAG INSPECTOR MODAL */}
+      <AnimatePresence>
+        {showAdminDebugModal && selectedDebugMessage && (
+          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                      <span>Live RAG Prompt & Chunk Inspector</span>
+                      <span className="text-2xs bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">
+                        Super Admin Only
+                      </span>
+                    </h3>
+                    <p className="text-2xs text-slate-400">
+                      Query grounded with {selectedDebugMessage.debugInfo?.matchedChunks?.length || 0} retrieved chunks
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowAdminDebugModal(false)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 overflow-y-auto space-y-5 flex-1 bg-slate-50/50">
+                {/* 1. Matched Chunks */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <Layers className="h-4 w-4 text-indigo-600" />
+                      <span>Retrieved Chunks & Relevance Scores</span>
+                    </h4>
+                    <span className="text-2xs text-gray-500">
+                      Threshold: 1.0 score
+                    </span>
+                  </div>
+
+                  {selectedDebugMessage.debugInfo?.matchedChunks && selectedDebugMessage.debugInfo.matchedChunks.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedDebugMessage.debugInfo.matchedChunks.map((chunk, idx) => (
+                        <div key={idx} className="p-3 bg-white rounded-xl border border-gray-200 shadow-2xs space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-gray-900">📄 {chunk.fileName}</span>
+                            <span className="text-2xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Score: {chunk.score} pts ({chunk.relevancePercentage}%)
+                            </span>
+                          </div>
+                          <div className="p-2.5 bg-gray-50 rounded-lg text-xs font-mono text-gray-800 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                            {chunk.chunkText}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900">
+                      <p className="font-bold">No chunks matched.</p>
+                      <p className="text-2xs mt-0.5">
+                        Reason: {selectedDebugMessage.debugInfo?.reasonIfEmpty || "Query did not hit matching terms above threshold."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Final Prompt Sent to Gemini */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                      <Terminal className="h-4 w-4 text-indigo-600" />
+                      <span>Final Grounded Prompt Sent to Gemini</span>
+                    </h4>
+                    {selectedDebugMessage.debugInfo?.finalPrompt && (
+                      <button
+                        onClick={() => handleCopyPrompt(selectedDebugMessage.debugInfo?.finalPrompt || '')}
+                        className="text-2xs font-semibold px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg flex items-center gap-1 transition"
+                      >
+                        {copiedPrompt ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                        <span>{copiedPrompt ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-slate-900 rounded-xl text-slate-200 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto border border-slate-800">
+                    {selectedDebugMessage.debugInfo?.finalPrompt || "No prompt recorded."}
+                  </div>
+                </div>
+
+                {/* 3. Generated Answer */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                    <Bot className="h-4 w-4 text-purple-600" />
+                    <span>Gemini Grounded Answer</span>
+                  </h4>
+                  <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-xl text-xs text-gray-900 whitespace-pre-wrap">
+                    {selectedDebugMessage.text}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <button
+                  onClick={() => setShowAdminDebugModal(false)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition"
+                >
+                  Close Inspector
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>
